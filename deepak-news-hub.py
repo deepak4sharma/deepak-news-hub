@@ -1,73 +1,86 @@
 import streamlit as st
 import requests
 from fpdf import FPDF
-import io
-from datetime import datetime
+from datetime import datetime, timedelta
 
 # 1. Page Config
 st.set_page_config(page_title="Deepak News Hub", page_icon="📰", layout="wide")
 
 st.title("📰 Deepak News Hub")
+st.write(f"Today's Date: {datetime.now().strftime('%Y-%m-%d')}")
 st.markdown("---")
+
+# 2. Date Calculation (Current Date - 30 Days)
+today = datetime.now()
+thirty_days_ago = today - timedelta(days=30)
+from_date = thirty_days_ago.strftime('%Y-%m-%d')
 
 countries = {"Global": "all", "India": "in", "USA": "us", "UK": "gb"}
 
 with st.sidebar:
     st.header("Search Settings")
-    query = st.text_input("Topic", placeholder="e.g. Technology, Tata, Copper")
+    query = st.text_input("Topic", placeholder="e.g. Hitachi, Copper Prices")
     selected_country = st.selectbox("Select Country", list(countries.keys()))
     country_code = countries[selected_country]
-    # This is your active API Key
     api_key = "ea01384660a7413396d05f56dedb569d"
+    
+    st.info(f"Searching news from: {from_date}")
 
-# 2. PDF Function
+# 3. PDF Function
 def create_pdf(articles, topic):
     pdf = FPDF()
     pdf.add_page()
     pdf.set_font("Arial", 'B', 16)
-    pdf.cell(200, 10, txt=f"Deepak News Report: {topic.upper()}", ln=True, align='C')
+    pdf.cell(200, 10, txt=f"News Report: {topic.upper()}", ln=True, align='C')
     pdf.ln(10)
     for art in articles[:10]:
-        pdf.set_font("Arial", 'B', 12)
-        pdf.multi_cell(0, 10, txt=art['title'].encode('latin-1', 'ignore').decode('latin-1'))
-        pdf.set_font("Arial", '', 10)
-        pdf.write(5, f"Source: {art['source']['name']} | URL: {art['url']}\n")
+        pdf.set_font("Arial", 'B', 11)
+        # Handle special characters for PDF
+        title = art['title'].encode('latin-1', 'ignore').decode('latin-1')
+        pdf.multi_cell(0, 10, txt=title)
+        pdf.set_font("Arial", '', 9)
+        pdf.write(5, f"Source: {art['source']['name']} | Date: {art['publishedAt'][:10]}\n")
+        pdf.write(5, f"Link: {art['url']}\n")
         pdf.ln(8)
     return pdf.output(dest='S').encode('latin-1')
 
-# 3. Fetching News
+# 4. Fetching News
 if query:
-    # Use "Everything" for specific words like 'copper' as 'top-headlines' is often empty
-    if country_code == "all" or query.lower() == "copper":
-        url = f"https://newsapi.org/v2/everything?q={query}&sortBy=publishedAt&apiKey={api_key}"
+    # Use 'everything' for general topics to allow the 30-day date filter
+    if country_code == "all" or len(query) > 0:
+        url = f"https://newsapi.org/v2/everything?q={query}&from={from_date}&sortBy=publishedAt&apiKey={api_key}"
     else:
         url = f"https://newsapi.org/v2/top-headlines?q={query}&country={country_code}&apiKey={api_key}"
     
-    with st.spinner('Checking for news...'):
+    with st.spinner('Scanning global news...'):
         r = requests.get(url)
         data = r.json()
 
-    if data.get("articles") and len(data["articles"]) > 0:
+    if data.get("articles"):
         articles = data["articles"]
         
-        # Sidebar Download Button
+        # Download Button in Sidebar
         pdf_bytes = create_pdf(articles, query)
-        st.sidebar.download_button(label="📥 Download PDF Report", data=pdf_bytes, file_name="news_report.pdf")
+        st.sidebar.download_button(
+            label="📥 Download 30-Day Report",
+            data=pdf_bytes,
+            file_name=f"{query}_report.pdf",
+            mime="application/pdf"
+        )
 
-        # Display News
+        # Main Display
         for art in articles[:10]:
             col1, col2 = st.columns([1, 4])
             with col1:
-                if art.get("urlToImage"):
-                    st.image(art["urlToImage"])
-                else:
-                    st.image("https://via.placeholder.com/150")
+                img = art.get("urlToImage") if art.get("urlToImage") else "https://via.placeholder.com/150"
+                st.image(img, use_container_width=True)
             with col2:
                 st.subheader(art["title"])
+                st.caption(f"{art['source']['name']} | {art['publishedAt'][:10]}")
                 st.write(art["description"])
-                st.markdown(f"[Read Article]({art['url']})")
+                st.markdown(f"[🔗 Read Full Article]({art['url']})")
             st.divider()
     else:
-        st.error(f"No results found for '{query}' in {selected_country}. Try setting Country to 'Global'.")
+        st.error("No articles found for this period. Try a different topic.")
 else:
-    st.info("Please type a topic in the sidebar and press Enter.")
+    st.info("👈 Enter a topic in the sidebar and press Enter to see results.")
