@@ -9,9 +9,9 @@ st.markdown("---")
 
 # Dictionary of country names and their codes for the API
 countries = {
-    "India": "in",
+    "India": "ind",
     "USA": "us",
-    "United Kingdom": "gb",
+    "United Kingdom": "UK",
     "Australia": "au",
     "Canada": "ca",
     "Global (Everything)": "all"
@@ -66,3 +66,4 @@ if query:
         st.warning("No articles found. Try removing the country filter or changing keywords.")
 else:
     st.info("👈 Type a topic (like 'Economy') in the sidebar to fetch the latest news!")
+
